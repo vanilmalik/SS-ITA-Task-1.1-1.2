@@ -1,68 +1,54 @@
 package onelist;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import utils.InputData;
+import utils.RangeForThreads;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class Main {
-
     public static void main(String[] args) {
-        int start = 0, end = 0, threadNumber = 0;
+        InputData inputData = new InputData();
+        int start = inputData.getStart();
+        int end = inputData.getEnd();
+        int threadNumber = inputData.getThreadNumber();
 
-        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in))) {
-            System.out.println("Input start of range: ");
-            start = Integer.parseInt(bufferedReader.readLine());
-            System.out.println("Input end of range: ");
-            end = Integer.parseInt(bufferedReader.readLine());
-            System.out.println("Input number of threads: ");
-            threadNumber = Integer.parseInt(bufferedReader.readLine());
+        List<NumberFinder> numberFinders = new ArrayList<>();
+        List<Integer> allPrimeNumbers = startToPerformThreads(start, end, threadNumber, numberFinders);
+        joinThreads(numberFinders);
 
-            if (threadNumber > (end - start + 1) || start <= 0 || end <= 0 || threadNumber <= 1 || end < start) {
-                throw new Exception();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (Exception e) {
-            System.out.println("Wrong input!");
-            return;
-        }
+        for (Integer currentNumber : allPrimeNumbers)
+            System.out.print(currentNumber + " ");
+    }
 
-        int quantityOfNumbersInSubRange = Math.round( (end - start + 1) / (float) threadNumber);
+    private static List<Integer> startToPerformThreads(int start, int end, int threadNumber, List<NumberFinder> numberFinders) {
+        List<Integer> allPrimeNumbers = Collections.synchronizedList(new ArrayList<>());
+        int quantityOfNumbersInSubRange = RangeForThreads.getNumbersInEachRange(end, start, threadNumber);
 
-        List<Integer> allPrimeNumbers = new ArrayList<>();
-        List<PrimeNumberChecker> primeNumberCheckers = Collections.synchronizedList(new ArrayList<>()); //common collection
-        PrimeNumberChecker primeNumberChecker;
+        NumberFinder numberFinder;
         int localStart = start;
-        long s = System.currentTimeMillis();
-        for (int i = 1; i <= threadNumber; i++) {
-            if (!( ( (end - start + 1) % threadNumber) == 0) && (i == threadNumber) ) {
-                primeNumberChecker = new PrimeNumberChecker(allPrimeNumbers, localStart, end);
-                primeNumberCheckers.add(primeNumberChecker);
+        for (int currentThreadNumber = 1; currentThreadNumber <= threadNumber; currentThreadNumber++) {
+            if (!RangeForThreads.isLastInRange(end, start, threadNumber, currentThreadNumber)) {
+                numberFinder = new NumberFinder(allPrimeNumbers, localStart, end);
+                numberFinders.add(numberFinder);
             } else {
-                primeNumberChecker = new PrimeNumberChecker(allPrimeNumbers, localStart, (localStart + quantityOfNumbersInSubRange - 1));
-                primeNumberCheckers.add(primeNumberChecker);
+                numberFinder = new NumberFinder(allPrimeNumbers, localStart, (localStart + quantityOfNumbersInSubRange - 1));
+                numberFinders.add(numberFinder);
             }
 
-            localStart = localStart + quantityOfNumbersInSubRange;
+            localStart += quantityOfNumbersInSubRange;
         }
+        return allPrimeNumbers;
+    }
 
-        for (PrimeNumberChecker p : primeNumberCheckers) {
+    private static void joinThreads(List<NumberFinder> numberFinders) {
+        for (NumberFinder p : numberFinders) {
             try {
                 p.getThread().join();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
-
-        for (Integer i : allPrimeNumbers) {
-            System.out.print(i + " ");
-        }
-        System.out.println();
-
-        long e = System.currentTimeMillis();
-        System.out.println( (e - s) );
     }
 }
